@@ -256,6 +256,8 @@ namespace AppOwnsData.Services
         /// <returns>Embed token</returns>
         public async Task<EmbedToken> GetEmbedTokenForRDLReport(Guid targetWorkspaceId, Guid reportId, string accessLevel = "view")
         {
+            // https://learn.microsoft.com/en-us/power-bi/paginated-reports/paginated-reports-embed#code-example
+
             PowerBIClient pbiClient = await this.GetPowerBIClient();
 
             // create semantic model request for embed token with XmlaPermissions.ReadOnly
