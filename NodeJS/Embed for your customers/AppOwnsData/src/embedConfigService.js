@@ -15,12 +15,12 @@ const fetch = require('node-fetch');
  * @return Details like Embed URL, Access token and Expiry
  */
 async function getEmbedInfo() {
-
+    console.log("getEmbedInfo");
     // Get the Report Embed details
     try {
 
         // Get report details and embed token
-        const embedParams = await getEmbedParamsForSingleReport(config.workspaceId, config.reportId);
+        const embedParams = await getEmbedParamsForSingleReport(config.workspaceId, config.reportId, config.datasetId);
 
         return {
             'accessToken': embedParams.embedToken.token,
@@ -46,6 +46,7 @@ async function getEmbedInfo() {
  * @return EmbedConfig object
  */
 async function getEmbedParamsForSingleReport(workspaceId, reportId, additionalDatasetId) {
+    console.log("getEmbedParamsForSingleReport", workspaceId, reportId, additionalDatasetId);
     const reportInGroupApi = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/reports/${reportId}`;
     const headers = await getRequestHeader();
 
@@ -61,7 +62,7 @@ async function getEmbedParamsForSingleReport(workspaceId, reportId, additionalDa
 
     // Convert result in json to retrieve values
     const resultJson = await result.json();
-
+    console.log("report details: ", resultJson);
     // Add report data for embedding
     const reportDetails = new PowerBiReportDetails(resultJson.id, resultJson.name, resultJson.embedUrl);
     const reportEmbedConfig = new EmbedConfig();
@@ -70,12 +71,18 @@ async function getEmbedParamsForSingleReport(workspaceId, reportId, additionalDa
     reportEmbedConfig.reportsDetail = [reportDetails];
 
     // Create list of datasets
-    let datasetIds = [resultJson.datasetId];
+    let datasetIds = [];
+
+    if (resultJson.datasetId) {
+        datasetIds.push(resultJson.datasetId);
+    }
 
     // Append additional dataset to the list to achieve dynamic binding later
     if (additionalDatasetId) {
         datasetIds.push(additionalDatasetId);
     }
+
+    console.log("datasetIds: ", datasetIds);
 
     // Get Embed token multiple resources
     reportEmbedConfig.embedToken = await getEmbedTokenForSingleReportSingleWorkspace(reportId, datasetIds, workspaceId);
@@ -90,7 +97,7 @@ async function getEmbedParamsForSingleReport(workspaceId, reportId, additionalDa
  * @return EmbedConfig object
  */
 async function getEmbedParamsForMultipleReports(workspaceId, reportIds, additionalDatasetIds) {
-
+    console.log("getEmbedParamsForMultipleReports");
     // EmbedConfig object 
     const reportEmbedConfig = new EmbedConfig();
 
@@ -146,32 +153,107 @@ async function getEmbedParamsForMultipleReports(workspaceId, reportIds, addition
  * @return EmbedToken
  */
 async function getEmbedTokenForSingleReportSingleWorkspace(reportId, datasetIds, targetWorkspaceId) {
+    console.log("getEmbedTokenForSingleReportSingleWorkspace");
+    console.log("targetWorkspaceId: ", targetWorkspaceId);
+
+    // https://api.powerbi.com/v1.0/myorg/reports/{reportId}/datasources
+    // https://api.powerbi.com/v1.0/myorg/groups/{groupId}/reports/{reportId}/datasources
+
+    // console.log("calling reportDatasourcesApi");
+    // const reportDatasourcesApi = `https://api.powerbi.com/v1.0/myorg/groups/${targetWorkspaceId}/reports/${reportId}/datasources`;
+    // const headers2 = await getRequestHeader();
+
+    // const reportDatasourcesResponse = await fetch(reportDatasourcesApi, {
+    //     method: 'GET',
+    //     headers: headers2,
+    // })
+
+    // console.log("headers2: ", headers2);
+
+    // const identityBlob = headers2['Authorization'].split("Bearer ")[1];
+    // console.log("identityBlob: ", identityBlob);
+    // const reportDatasourcesJson = await reportDatasourcesResponse.json();
+    // console.log("reportDatasourcesJson: ", reportDatasourcesJson);
+
+    // const datasourceType = reportDatasourcesJson.value[0].datasourceType;
+    // const connectionDetails = reportDatasourcesJson.value[0].connectionDetails;
+
+    // console.log("datasourceType: ", datasourceType);
 
     // Add report id in the request
     let formData = {
         'reports': [{
             'id': reportId
         }]
+        // 'datasourceIdentities': [{
+        //     'datasources': [
+        //         {
+        //         'datasourceType': datasourceType,
+        //         'connectionDetails': connectionDetails   
+        //     }
+        // ],
+        // "identityBlob": identityBlob
+        // }]
     };
 
     // Add dataset ids in the request
     formData['datasets'] = [];
-    for (const datasetId of datasetIds) {
-        formData['datasets'].push({
-            'id': datasetId
-        })
-    }
+
+    formData['datasets'].push({
+        'id': datasetIds[0],
+        "xmlaPermissions": "ReadOnly"
+    })
+
+    // for (const datasetId of datasetIds) {
+
+    //     // GET https://api.powerbi.com/v1.0/myorg/groups/f089354e-8366-4e18-aea3-4cb4a3a50b48/datasets/cfafbeb1-8037-4d0c-896e-a46fb27ff229/datasources
+
+    //     const datasourcesApi = `https://api.powerbi.com/v1.0/myorg/groups/${targetWorkspaceId}/datasets/${datasetId}/datasources`;
+    //     const headers = await getRequestHeader();
+
+    //     const result = await fetch(datasourcesApi, {
+    //         method: 'GET',
+    //         headers: headers,
+    //     })  
+
+    //     const resultJson = await result.json();
+    //     console.log("datasources_response: ", resultJson);
+
+
+
+    //     formData['datasets'].push({
+    //         'id': datasetId,
+    //         "xmlaPermissions": "ReadOnly"
+    //     })
+    // }
+
+    // console.log("reportDatasourcesJson.value[0]: ", reportDatasourcesJson.value[0].datasourceType);
+//     formData['datasourceIdentities'] = [];
+//     formData['datasourceIdentities'].push({
+            
+//         "datasourceType": reportDatasourcesJson.value[0].datasourceType,
+//         "connectionDetails": reportDatasourcesJson.value[0].connectionDetails
+// })
 
     // Add targetWorkspace id in the request
-    if (targetWorkspaceId) {
-        formData['targetWorkspaces'] = [];
-        formData['targetWorkspaces'].push({
-            'id': targetWorkspaceId
-        })
-    }
+    // if (targetWorkspaceId) {
+    //     formData['targetWorkspaces'] = [];
+    //     formData['targetWorkspaces'].push({
+    //         'id': targetWorkspaceId
+    //     })
+    // }
 
-    const embedTokenApi = "https://api.powerbi.com/v1.0/myorg/GenerateToken";
+    console.log("formData: ", formData);
+
+    // https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal?tabs=azure-portal#considerations-and-limitations
+
+    // const embedTokenApi = "https://api.powerbi.com/v1.0/myorg/GenerateToken";
+    const embedTokenApi = `https://api.powerbi.com/v1.0/myorg/groups/${targetWorkspaceId}/reports/${reportId}/GenerateToken`;
+    // const embedTokenApi = `https://api.powerbi.com/v1.0/myorg/groups/${targetWorkspaceId}/datasets/${datasetIds[0]}/GenerateToken`;
     const headers = await getRequestHeader();
+    headers['X-PowerBI-profile-id'] = "da81f5e7-6446-4289-83f6-5a31b0b4e724";
+    console.log("headers: ", JSON.stringify(headers));
+    
 
     // Generate Embed token for single report, workspace, and multiple datasets. Refer https://aka.ms/MultiResourceEmbedToken
     const result = await fetch(embedTokenApi, {
@@ -180,9 +262,14 @@ async function getEmbedTokenForSingleReportSingleWorkspace(reportId, datasetIds,
         body: JSON.stringify(formData)
     });
 
-    if (!result.ok)
+    if (!result.ok) {
+        console.log("ERROR: ", result);
         throw result;
-    return result.json();
+    }
+
+    const resultJson = await result.json();
+    console.log("resultJson_embedToken: ", resultJson);
+    return resultJson;
 }
 
 /**
@@ -193,7 +280,7 @@ async function getEmbedTokenForSingleReportSingleWorkspace(reportId, datasetIds,
  * @return EmbedToken
  */
 async function getEmbedTokenForMultipleReportsSingleWorkspace(reportIds, datasetIds, targetWorkspaceId) {
-
+    console.log("getEmbedTokenForMultipleReportsSingleWorkspace");
     // Add dataset ids in the request
     let formData = { 'datasets': [] };
     for (const datasetId of datasetIds) {
@@ -241,7 +328,7 @@ async function getEmbedTokenForMultipleReportsSingleWorkspace(reportIds, dataset
  * @return EmbedToken
  */
 async function getEmbedTokenForMultipleReportsMultipleWorkspaces(reportIds, datasetIds, targetWorkspaceIds) {
-
+    console.log("getEmbedTokenForMultipleReportsMultipleWorkspaces");
     // Note: This method is an example and is not consumed in this sample app
 
     // Add dataset ids in the request
@@ -290,7 +377,7 @@ async function getEmbedTokenForMultipleReportsMultipleWorkspaces(reportIds, data
  * @return Request header with Bearer token
  */
 async function getRequestHeader() {
-
+    console.log("getRequestHeader");
     // Store authentication token
     let tokenResponse;
 
@@ -299,7 +386,12 @@ async function getRequestHeader() {
 
     // Get the response from the authentication request
     try {
+        console.log("About to call auth.getAccessToken()");
+        console.log("Function parameters:", Function.prototype.toString.call(auth.getAccessToken).match(/\(([^)]*)\)/)[1]);
+        
         tokenResponse = await auth.getAccessToken();
+        console.log("Received tokenResponse:", Object.keys(tokenResponse));
+        console.log("tokenResponse.scopes: ", tokenResponse.scopes);
     } catch (err) {
         if (err.hasOwnProperty('error_description') && err.hasOwnProperty('error')) {
             errorResponse = err.error_description;

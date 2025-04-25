@@ -4,12 +4,20 @@
 // ----------------------------------------------------------------------------
 
 const getAccessToken = async function () {
+    console.log("getAccessToken called with arguments:", arguments);
+    
     // Create a config variable that store credentials from config.json
     const config = require(__dirname + "/../config/config.json");
 
     // Use MSAL.js for authentication
     const msal = require("@azure/msal-node");
 
+    // Print out the configuration being used
+    console.log("Authentication configuration:");
+    console.log("- authenticationMode:", config.authenticationMode);
+    console.log("- clientId:", config.clientId);
+    console.log("- tenantId:", config.tenantId);
+    
     const msalConfig = {
         auth: {
             clientId: config.clientId,
@@ -26,6 +34,12 @@ const getAccessToken = async function () {
             username: config.pbiUsername,
             password: config.pbiPassword
         };
+        
+        console.log("Using MasterUser authentication with:", { 
+            scopes: [config.scopeBase],
+            username: config.pbiUsername,
+            // Not logging password for security
+        });
 
         return clientApplication.acquireTokenByUsernamePassword(usernamePasswordRequest);
 
@@ -37,10 +51,18 @@ const getAccessToken = async function () {
         const clientApplication = new msal.ConfidentialClientApplication(msalConfig);
 
         const clientCredentialRequest = {
-            scopes: [config.scopeBase],
+            scopes: [
+                config.scopeBase,
+                // 'https://analysis.windows.net/powerbi/api/Report.ReadWrite.All',
+                // 'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All'
+            ],
         };
+        
+        console.log("Using ServicePrincipal authentication with scopes:", [clientCredentialRequest.scopes]);
 
-        return clientApplication.acquireTokenByClientCredential(clientCredentialRequest);
+        const result = await clientApplication.acquireTokenByClientCredential(clientCredentialRequest);
+        console.log("acquireTokenByClientCredential_result: ", result);
+        return result;
     }
 }
 

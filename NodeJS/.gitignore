@@ -111,3 +111,4 @@ dist
 
 # IDE
 .vscode/
+*config.local.json
