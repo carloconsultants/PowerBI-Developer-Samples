@@ -3,7 +3,7 @@
 // Licensed under the MIT license.
 // ----------------------------------------------------------------------------
 
-let config = require(__dirname + "/../config/config.json");
+let config = require(__dirname + "/../config/config.local.json");
 
 function getAuthHeader(accessToken) {
 
