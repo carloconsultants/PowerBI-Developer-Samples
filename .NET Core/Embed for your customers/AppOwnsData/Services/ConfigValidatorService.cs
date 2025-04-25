@@ -58,6 +58,14 @@ namespace AppOwnsData.Services
             {
                 message = "Please enter a valid guid for Report Id in appsettings.json file";
             }
+            else if (string.IsNullOrWhiteSpace(powerBI.Value.DatasetId))
+            {
+                message = "Dataset Id is not set in appsettings.json file";
+            }
+            else if (!IsValidGuid(powerBI.Value.DatasetId))
+            {
+                message = "Please enter a valid guid for Dataset Id in appsettings.json file";
+            }
             else if (isAuthModeMasterUser && string.IsNullOrWhiteSpace(azureAd.Value.PbiUsername))
             {
                 message = "Master user email is not set in appsettings.json file";

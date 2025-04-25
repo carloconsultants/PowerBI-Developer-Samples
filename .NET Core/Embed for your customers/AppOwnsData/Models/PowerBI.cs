@@ -12,5 +12,6 @@ namespace AppOwnsData.Models
 
         // Report Id for which Embed token needs to be generated
         public string ReportId { get; set; }
+        public string DatasetId { get; set; }
     }
 }

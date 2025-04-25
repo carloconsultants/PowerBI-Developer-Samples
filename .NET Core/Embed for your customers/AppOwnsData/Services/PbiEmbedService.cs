@@ -6,6 +6,7 @@
 namespace AppOwnsData.Services
 {
     using AppOwnsData.Models;
+    using Microsoft.Extensions.Options;
     using Microsoft.PowerBI.Api;
     using Microsoft.PowerBI.Api.Models;
     using Microsoft.Rest;
@@ -18,11 +19,13 @@ namespace AppOwnsData.Services
     public class PbiEmbedService
     {
         private readonly AadService aadService;
-        private readonly string powerBiApiUrl  = "https://api.powerbi.com";
+        private readonly string powerBiApiUrl = "https://api.powerbi.com";
+        private readonly IOptions<PowerBI> powerBIOptions;
 
-        public PbiEmbedService(AadService aadService)
+        public PbiEmbedService(AadService aadService, IOptions<PowerBI> powerBIOptions)
         {
             this.aadService = aadService;
+            this.powerBIOptions = powerBIOptions;
         }
 
         /// <summary>
@@ -33,7 +36,7 @@ namespace AppOwnsData.Services
         {
             var accessToken = await aadService.GetAccessToken();
             var tokenCredentials = new TokenCredentials(accessToken, "Bearer");
-            return new PowerBIClient(new Uri(powerBiApiUrl ), tokenCredentials);
+            return new PowerBIClient(new Uri(powerBiApiUrl), tokenCredentials);
         }
 
         /// <summary>
@@ -56,6 +59,7 @@ namespace AppOwnsData.Services
             // Generate embed token for RDL report if dataset is not present
             if (isRDLReport)
             {
+                Console.WriteLine("Generating Embed token for RDL Report");
                 // Get Embed token for RDL Report
                 embedToken = await GetEmbedTokenForRDLReport(workspaceId, reportId);
             }
@@ -254,15 +258,30 @@ namespace AppOwnsData.Services
         {
             PowerBIClient pbiClient = await this.GetPowerBIClient();
 
-            // Generate token request for RDL Report
-            var generateTokenRequestParameters = new GenerateTokenRequest(
-                accessLevel: accessLevel
-            );
+            // create semantic model request for embed token with XmlaPermissions.ReadOnly
+            var datasetRequests = new List<GenerateTokenRequestV2Dataset> {
+                new GenerateTokenRequestV2Dataset(powerBIOptions.Value.DatasetId, xmlaPermissions: XmlaPermissions.ReadOnly)
+            };
 
-            // Generate Embed token
-            var embedToken = pbiClient.Reports.GenerateTokenInGroup(targetWorkspaceId, reportId, generateTokenRequestParameters);
+            // create report request for embed token with allowEdit set to false
+            var reportRequests = new List<GenerateTokenRequestV2Report>{
+                new GenerateTokenRequestV2Report(reportId, allowEdit: false)
+            };
+
+            // create token request
+            var tokenRequest = new GenerateTokenRequestV2
+            {
+                Datasets = datasetRequests,
+                Reports = reportRequests,
+            };
+
+            // call GenerateToken to retrieve embed token from Power BI REST API
+            var EmbedTokenResult = pbiClient.EmbedToken.GenerateToken(tokenRequest);
+
+            // extract embed token for embed token result
+            var embedToken = EmbedTokenResult;
 
             return embedToken;
         }
-    }  
+    }
 }
