@@ -33,12 +33,12 @@ function validateConfig() {
         return "ClientId must be a Guid object. Please register your application as Native app in https://dev.powerbi.com/apps and fill Client Id in config.json.";
     }
 
-    if (!config.reportId) {
-        return "ReportId is empty. Please select a report you own and fill its Id in config.json.";
+    if (!config.reportId && !config.paginatedReportId) {
+        return "ReportId or PaginatedReportId is empty. Please select a report you own and fill its Id in config.json.";
     }
 
-    if (!guid.isGuid(config.reportId)) {
-        return "ReportId must be a Guid object. Please select a report you own and fill its Id in config.json.";
+    if (!guid.isGuid(config.reportId) && !guid.isGuid(config.paginatedReportId)) {
+        return "ReportId or PaginatedReportId must be a Guid object. Please select a report you own and fill its Id in config.json.";
     }
 
     if (!config.workspaceId) {
