@@ -15,12 +15,17 @@ const fetch = require('node-fetch');
  * @return Details like Embed URL, Access token and Expiry
  */
 async function getEmbedInfo() {
-
-    // Get the Report Embed details
     try {
+        let embedParams;
 
-        // Get report details and embed token
-        const embedParams = await getEmbedParamsForSingleReport(config.workspaceId, config.reportId);
+        // Check report type from config
+        if (config.reportType === "paginated") {
+            // Get embed params for paginated report
+            embedParams = await getEmbedParamsForPaginatedReport(config.workspaceId, config.reportId);
+        } else {
+            // Get embed params for standard report
+            embedParams = await getEmbedParamsForSingleReport(config.workspaceId, config.reportId);
+        }
 
         return {
             'accessToken': embedParams.embedToken.token,
@@ -29,12 +34,12 @@ async function getEmbedInfo() {
             'status': 200
         };
     } catch (err) {
-        const errorBody = JSON.stringify(await err.json());
+        console.error("Error while retrieving report embed details", err);
 
         return {
             'status': err.status,
             'error': `Error while retrieving report embed details\r\nStatus: ${err.status + ' ' + err.statusText}\r\nResponse: ${errorBody}\r\nRequestId: \n${err.headers.get('requestid')}`
-        }
+        };
     }
 }
 
@@ -83,6 +88,69 @@ async function getEmbedParamsForSingleReport(workspaceId, reportId, additionalDa
 }
 
 /**
+ * Get embed params for a paginated report
+ * @param {string} workspaceId
+ * @param {string} reportId
+ * @return EmbedConfig object
+ */
+async function getEmbedParamsForPaginatedReport(workspaceId, reportId) {
+    const paginatedReportApi = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/reports/${reportId}`;
+    const headers = await getRequestHeader();
+
+    // Get report info by calling the PowerBI REST API
+    const result = await fetch(paginatedReportApi, {
+        method: 'GET',
+        headers: headers,
+    });
+
+    if (!result.ok) {
+        throw result;
+    }
+
+    // Convert result in json to retrieve values
+    const resultJson = await result.json();
+
+    console.log("resultJson", resultJson);
+    
+    const datasourceForReportApi = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/datasources`;
+    const datasourceHeaders = await getRequestHeader();
+    const datasourceResult = await fetch(datasourceForReportApi, {
+        method: 'GET',
+        headers: datasourceHeaders,
+    });
+
+    const datasourceResultJson = await datasourceResult.json();
+    console.log("datasourceResultJson", datasourceResultJson);
+    const connectionDetails = datasourceResultJson.value[0].connectionDetails;
+    console.log("connectionDetails", connectionDetails);
+    // parse datasetid from database
+    const datasetId = connectionDetails.database.split('wowvirtualserver-')[1];
+    console.log("datasetId", datasetId);
+
+
+    // *** Get the dataset ID associated with the paginated report ***
+    
+    if (!datasetId) {
+         // Handle error: Paginated report is not connected to a dataset? Or API didn't return it?
+         console.error("Could not find dataset ID for paginated report:", reportId);
+         throw new Error("Paginated report dataset ID not found.");
+    }
+
+
+    // Add report data for embedding
+    const reportDetails = new PowerBiReportDetails(resultJson.id, resultJson.name, resultJson.embedUrl);
+    const reportEmbedConfig = new EmbedConfig();
+
+    // Create mapping for report and Embed URL
+    reportEmbedConfig.reportsDetail = [reportDetails];
+
+    // *** Get Embed token including the dataset ID ***
+    // Pass the fetched datasetId in an array
+    reportEmbedConfig.embedToken = await getEmbedTokenForSingleReportSingleWorkspace(reportId, [datasetId], workspaceId);
+    return reportEmbedConfig;
+}
+
+/**
  * Get embed params for multiple reports for a single workspace
  * @param {string} workspaceId
  * @param {Array<string>} reportIds
@@ -103,7 +171,10 @@ async function getEmbedParamsForMultipleReports(workspaceId, reportIds, addition
     // Get datasets and Embed URLs for all the reports
     for (const reportId of reportIds) {
         const reportInGroupApi = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/reports/${reportId}`;
+        
+        
         const headers = await getRequestHeader();
+        headers['X-PowerBI-profile-id'] = "da81f5e7-6446-4289-83f6-5a31b0b4e724";
 
         // Get report info by calling the PowerBI REST API
         const result = await fetch(reportInGroupApi, {
@@ -123,7 +194,7 @@ async function getEmbedParamsForMultipleReports(workspaceId, reportIds, addition
 
         // Create mapping for reports and Embed URLs
         reportEmbedConfig.reportsDetail.push(reportDetails);
-
+        console.log("resultJson", resultJson);
         // Push datasetId of the report into datasetIds array
         datasetIds.push(resultJson.datasetId);
     }
@@ -141,7 +212,7 @@ async function getEmbedParamsForMultipleReports(workspaceId, reportIds, addition
 /**
  * Get Embed token for single report, multiple datasets, and an optional target workspace
  * @param {string} reportId
- * @param {Array<string>} datasetIds
+ * @param {Array<string>} datasetIds Can be null or empty if no datasets are needed (e.g., some paginated scenarios, though likely needed for PBI dataset source)
  * @param {string} targetWorkspaceId - Optional Parameter
  * @return EmbedToken
  */
@@ -154,20 +225,23 @@ async function getEmbedTokenForSingleReportSingleWorkspace(reportId, datasetIds,
         }]
     };
 
-    // Add dataset ids in the request
+    // Add dataset ids in the request - only if datasetIds is provided and not empty
+    
     formData['datasets'] = [];
     for (const datasetId of datasetIds) {
         formData['datasets'].push({
-            'id': datasetId
-        })
+            'id': datasetId,
+            'xmlaPermissions': 'ReadOnly'
+        });
     }
+    
 
     // Add targetWorkspace id in the request
     if (targetWorkspaceId) {
         formData['targetWorkspaces'] = [];
         formData['targetWorkspaces'].push({
             'id': targetWorkspaceId
-        })
+        });
     }
 
     const embedTokenApi = "https://api.powerbi.com/v1.0/myorg/GenerateToken";
@@ -179,6 +253,8 @@ async function getEmbedTokenForSingleReportSingleWorkspace(reportId, datasetIds,
         headers: headers,
         body: JSON.stringify(formData)
     });
+    console.log("headers: " + JSON.stringify(headers));
+    console.log("body: " + JSON.stringify(formData));
 
     if (!result.ok)
         throw result;

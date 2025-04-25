@@ -8,14 +8,13 @@ let reportContainer = $("#report-container").get(0);
 
 // Initialize iframe for embedding report
 powerbi.bootstrap(reportContainer, { type: "report" });
-
 // AJAX request to get the report details from the API and pass it to the UI
 $.ajax({
     type: "GET",
     url: "/getEmbedToken",
     dataType: "json",
     success: function (embedData) {
-
+        console.log("Embed Data: ", embedData);
         // Create a config object with type of the object, Embed details and Token Type
         let reportLoadConfig = {
             type: "report",
@@ -24,7 +23,7 @@ $.ajax({
 
             // Use other embed report config based on the requirement. We have used the first one for demo purpose
             embedUrl: embedData.embedUrl[0].embedUrl,
-
+            
             // Enable this setting to remove gray shoulders from embedded report
             // settings: {
             //     background: models.BackgroundType.Transparent
